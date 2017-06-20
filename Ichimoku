@@ -1,0 +1,54 @@
+import pandas as pd
+from pandas_datareader import data, wb
+import datetime
+import pip
+from pandas import read_csv
+import os
+from pyalgotrade import bar
+import matplotlib.pyplot as plt
+
+dir = os.path.dirname(__file__)
+
+currencyPair = "BTC_ETC"
+period = 4 * bar.Frequency.HOUR
+
+csvFilePath = os.path.join(dir, 'Data', currencyPair + "_" + str(period)+".csv")
+
+#rs = read_csv(out, index_col=0, parse_dates=True, na_values='-')[::-1]
+#d=data.DataReader("AAPL", 'google', start, end)
+with open(csvFilePath, "rU") as inf:
+    d=read_csv(inf)
+
+high_prices = d['high']
+close_prices = d['quoteVolume']
+low_prices = d['low']
+dates = d.index
+
+tenkan_period = 20
+kijun_period = 60
+senkou_period = 120
+senkou_shift = 30
+
+# Tenkan-sen (Base Line): (X-period high + X-period low)/2))
+tenkan_high = high_prices.rolling(window=tenkan_period,center=False).max()
+tenkan_low = low_prices.rolling(window=tenkan_period,center=False).min()
+d['Tenkan_sen'] = (tenkan_high + tenkan_low) /2
+
+# Kijun-sen (Base Line): (Y-period high + Y-period low)/2))
+kijun_high = high_prices.rolling(window=kijun_period,center=False).max()
+kijun_low = low_prices.rolling(window=kijun_period,center=False).min()
+d['Kijun_sen'] = (kijun_high + kijun_low) / 2
+
+# Senkou Span A (Leading Span A): (Conversion Line + Base Line)/2)) plotted W periods ahead
+d['Senkou_span_a'] = ((d['Tenkan_sen'] + d['Kijun_sen']) / 2).shift(senkou_shift)
+
+# Senkou Span B (Leading Span B): (Z-period high + Z-period low)/2)) plotted W periods ahead
+senkou_high = high_prices.rolling(window=senkou_period,center=False).max()
+senkou_low = low_prices.rolling(window=senkou_period,center=False).min()
+d['Senkou_span_b'] = ((senkou_high + senkou_low) / 2).shift(senkou_shift)
+
+# The most current closing price plotted W time periods behind (optional)
+d['Chikou_span'] = close_prices.shift(-senkou_shift)
+
+d.plot()
+plt.show()
