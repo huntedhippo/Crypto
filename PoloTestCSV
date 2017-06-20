@@ -1,0 +1,43 @@
+
+import os
+import datetime
+import csv
+
+import poloniex
+from pyalgotrade import bar
+
+dir = os.path.dirname(__file__)
+
+currencyPair = "BTC_ETC"
+period = 5 * bar.Frequency.MINUTE
+
+csvFilePath = os.path.join(dir, 'Data', currencyPair + "_" + str(period)+".csv")
+
+def getData():
+
+    poloAPI = poloniex.Poloniex()
+
+    data = poloAPI.returnChartData(currencyPair, period)
+
+
+    with open(csvFilePath,"wb+") as outf:
+        output = csv.writer(open(csvFilePath,"wb+"))
+
+        output.writerow(data[0].keys())  # header row
+
+        for row in data:
+            output.writerow(row.values())
+
+def readData():
+
+    with open(csvFilePath, "rU") as inf:
+        reader = csv.DictReader(inf)
+        dateList = [float(row['date']) for row in reader]
+
+    min_date = datetime.datetime.fromtimestamp(min(dateList))
+    max_date = datetime.datetime.fromtimestamp(max(dateList))
+
+    print("From {} to {}".format(min_date, max_date))
+
+getData()
+readData()
