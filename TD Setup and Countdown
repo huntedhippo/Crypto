@@ -1,0 +1,212 @@
+
+//^^^^^^^^^^^^^^^^^^^^//
+//  Name and info     //
+//____________________//
+
+study('TD Setup and Countdown',overlay=true)
+
+
+//^^^^^^^^^^^^^^^^^^^^//
+// Still to program   //
+
+//Extension of TD Countdown past 18 bars
+//9-13-9 indicator
+//Risk level
+
+//^^^^^^^^^^^^^^^^^^^^//
+//  Input parameters  //
+//____________________//
+
+transp     = input(0)
+numbers    = input(true)
+resistance = input(true)
+barcolor   = input(true)
+risklevels = input(true)
+
+
+//^^^^^^^^^^^^^^^^^^^^//
+//  Calculations      //
+//____________________//
+
+
+//^^^^^^^^^^^^^^^^^^^^//
+//^^^^^^SETUP^^^^^^^^^//
+//^^^^^^^^^^^^^^^^^^^^//
+
+//Which type of setup bar is it?
+SUUpBar = close > close[4]
+SUDnBar = close < close[4]
+
+//How many setup bars of the same type have we had in a row?
+TDUp    = SUUpBar ? nz(TDUp[1])+1 : 0
+TDDn    = SUDnBar ? nz(TDDn[1])+1 : 0
+TD = TDUp>TDDn?TDUp:TDDn
+
+//Have we had a price flip?
+priceFlipBull = SUUpBar and SUDnBar[1]
+priceFlipBear = SUDnBar and SUUpBar[1]
+priceFlip = priceFlipBull or priceFlipBear
+
+
+//^^^^^^SETUP RISK LEVEL^^^^^^^^^//
+
+//High and low of current set up.  Each time there is a price flip we reset.
+tHigh =  priceFlip or high>tHigh[1] ? high:tHigh[1]
+tLow  =  priceFlip or low<tLow[1] ? low:tLow[1]
+
+//Calculate the risk level true range
+tHighTR = priceFlip or high>tHigh[1] ? high - low : tHighTR[1]
+tLowTR =  priceFlip or low<tLow[1] ? high - low : tLowTR[1]
+
+
+//^^^^^^SETUP PERFECTION^^^^^^^^^//
+
+//Perfected setup if greater/less than bars 6 and 7
+perfectSellVal = TDUp == 6 ? high : TDUp == 7 and high > perfectSellVal[1] ? high : perfectSellVal[1]
+perfectBuyVal = TDDn == 6 ? low : TDDn == 7 and low < perfectBuyVal[1] ? low : perfectBuyVal[1]
+
+//Any bar that would qualify for perfect  (even if already perfected)
+perfectSell = ( TDUp == 9 and (high > perfectSellVal or high[1] > perfectSellVal) ) or (TDUp > 9 and high > perfectSellVal)
+perfectBuy = ( TDDn == 9 and (low < perfectBuyVal or low[1] < perfectBuyVal) ) or (TDDn > 9 and low < perfectBuyVal)
+
+//Once perfect is in keep it in so as not to have multiple perfects
+perfectSellOnce = priceFlipBear ? false : perfectSellOnce[1] ? true : perfectSell
+perfectBuyOnce = priceFlipBull ? false : perfectBuyOnce[1] ? true : perfectBuy
+
+//When perfect is in
+perfect = perfectSellOnce or perfectBuyOnce
+perfectNow = perfect and not perfect[1]
+
+//Risk levels
+perfectSellRiskLevel = perfectSellOnce and perfectNow ? tHigh + tHighTR : perfectSellRiskLevel[1]
+perfectBuyRiskLevel = perfectBuyOnce and perfectNow ? tLow - tLowTR : perfectBuyRiskLevel[1]
+
+displaySellRiskLevel = (perfectSellOnce and perfectNow) or (perfectSellOnce[1] and perfectNow[1]) or (perfectSellOnce[2] and perfectNow[2])
+displayBuyRiskLevel = (perfectBuyOnce and perfectNow) or (perfectBuyOnce[1] and perfectNow[1]) or (perfectBuyOnce[2] and perfectNow[2])
+
+//^^^^^^SETUP SUPPORT/RESIST^^^^^^^^^//
+
+//Is the sell setup or buy setup complete?  (currently not using perfected)
+sell    = TDUp==9
+buy     = TDDn==9
+
+//Support Resistance lines, programmed to be the first bar of the latest complete setup for buy and sell
+//If we just completed a setup then we change the support/resistance
+TDSTsup = sell? valuewhen(TDUp==1,low ,0): nz(TDSTsup[1])
+TDSTres = buy?  valuewhen(TDDn==1,high,0): nz(TDSTres[1])
+
+
+//^^^^^^SETUP NOT USED^^^^^^^^^//
+//Calculate the true range of entire set up
+sellSUcomp = priceFlipBear and TDUp[1] > 8
+sellHigh  = sellSUcomp ? tHigh[1] : sellHigh[1]
+sellLow   = sellSUcomp ? tLow[1]  : sellLow[1]
+sellTR    = sellSUcomp ? sellHigh - sellLow : sellTR[1]
+
+
+//^^^^^^^^^^^^^^^^^^^^^^^^//
+//^^^^^^COUNTDOWN^^^^^^^^^//
+//^^^^^^^^^^^^^^^^^^^^^^^^//
+
+//Is it a possible countdown bar?
+CDUpBar = close > high[2]
+CDDnBar = close < low[2]
+
+//Have we broken support?
+supBreak = high < TDSTsup
+resBreak = low  > TDSTres
+
+//If we've broken support or reached countdown 13 then cancel countdown
+CDUpCancel = CDUp[1]==13 or buy  or supBreak
+CDDnCancel = CDDn[1]==13 or sell or resBreak
+
+//Number of bars since last countdown cancel or sell/buy signal (TD = 9)
+//Only used as a Boolean.  It resets the countdown if it is zero
+CDUpOn  = CDUpCancel ? 0 : CDUpOn[1] > 0 ? nz(CDUpOn[1])+1 : sell ? 1 : 0
+CDDnOn  = CDDnCancel ? 0 : CDDnOn[1] > 0 ? nz(CDDnOn[1])+1 : buy  ? 1 : 0
+
+//Countdown variable.
+//1. Resets if CDUpOn is 0 - builds in TD >= 9 and the cancel condition when breaks sup/res
+//2. If the countdown bar condition is met then add 1 to countdown (with exception of rule below)
+//3. Only completes to CD = 13 if the high of the 13th coundown will be greater than the 8th countdown close
+CDUp    = CDUpOn==0 ? 0 : CDUpBar ? CDUp[1]==12 and high < valuewhen(CDUp[1]==7,close,0) ? 12 : nz(CDUp[1])+1 : CDUp[1]
+CDDn    = CDDnOn==0 ? 0 : CDDnBar ? CDDn[1]==12 and low  > valuewhen(CDDn[1]==7,close,0) ? 12 : nz(CDDn[1])+1 : CDDn[1]
+
+CD = CDUp>CDDn?CDUp:CDDn
+
+
+//^^^^^^^^^^^^^^^^^^^^//
+//  Plot              //
+//____________________//
+
+//Note that there is a limit to number of plots.  This can be solved by creating two indicators as in Tone Vayes indicator
+
+//Note that I have chosen to use plotchar and so plot letters for the numbers > 9
+
+// Plot Setup
+plotchar(numbers?(TD==1? true:na):na,char='1', color=TDUp>0?green:red,transp=transp, editable = false)
+plotchar(numbers?(TD==2? true:na):na,char='2', color=TDUp>0?green:red,transp=transp, editable = false)
+plotchar(numbers?(TD==3? true:na):na,char='3', color=TDUp>0?green:red,transp=transp, editable = false)
+plotchar(numbers?(TD==4? true:na):na,char='4', color=TDUp>0?green:red,transp=transp, editable = false)
+plotchar(numbers?(TD==5? true:na):na,char='5', color=TDUp>0?green:red,transp=transp, editable = false)
+plotchar(numbers?(TD==6? true:na):na,char='6', color=TDUp>0?green:red,transp=transp, editable = false)
+plotchar(numbers?(TD==7? true:na):na,char='7', color=TDUp>0?green:red,transp=transp, editable = false)
+plotchar(numbers?(TD==8? true:na):na,char='8', color=TDUp>0?green:red,transp=transp, editable = false)
+plotchar(numbers?(TD==9? true:na):na,char='9', color=TDUp>0?green:red,transp=transp, editable = false)
+plotchar(numbers?(TD==10?true:na):na,char='a', color=TDUp>0?green:red,transp=transp, editable = false)
+plotchar(numbers?(TD==11?true:na):na,char='b', color=TDUp>0?green:red,transp=transp, editable = false)
+plotchar(numbers?(TD==12?true:na):na,char='c', color=TDUp>0?green:red,transp=transp, editable = false)
+plotchar(numbers?(TD==13?true:na):na,char='d', color=TDUp>0?green:red,transp=transp, editable = false)
+plotchar(numbers?(TD==14?true:na):na,char='e', color=TDUp>0?green:red,transp=transp, editable = false)
+//plotchar(numbers?(TD==15?true:na):na,char='f', color=TDUp>0?green:red,transp=transp, editable = false)
+//plotchar(numbers?(TD==16?true:na):na,char='g', color=TDUp>0?green:red,transp=transp, editable = false)
+//plotchar(numbers?(TD==17?true:na):na,char='h', color=TDUp>0?green:red,transp=transp, editable = false)
+//plotchar(numbers?(TD==18?true:na):na,char='i', color=TDUp>0?green:red,transp=transp, editable = false)
+
+//Plot when perfected
+plotchar(numbers?(perfectNow?true:na):na,char=' ', color=TDUp>0?blue:orange,transp=transp, text = 'P')
+
+//Plot support/resistance lines
+plot(resistance? TDSTres: na, style=circles, linewidth=1, color=red  )
+plot(resistance? TDSTsup: na, style=circles, linewidth=1, color=lime )
+
+//Plot riskLevels
+plot(risklevels and displayBuyRiskLevel ? perfectBuyRiskLevel: na, style=cross, linewidth=2, color=blue)
+plot(risklevels and displaySellRiskLevel ? perfectSellRiskLevel: na, style=cross, linewidth=2, color=orange)
+
+//Plot Countdown
+plotchar(numbers?CD==1  and CD[1]==0  ?1: 0:0, char='1' , location=location.belowbar, color=CDUp?lime:red)
+plotchar(numbers?CD==2  and CD[1]==1  ?1: 0:0, char='2' , location=location.belowbar, color=CDUp?lime:red)
+plotchar(numbers?CD==3  and CD[1]==2  ?1: 0:0, char='3' , location=location.belowbar, color=CDUp?lime:red)
+plotchar(numbers?CD==4  and CD[1]==3  ?1: 0:0, char='4' , location=location.belowbar, color=CDUp?lime:red)
+plotchar(numbers?CD==5  and CD[1]==4  ?1: 0:0, char='5' , location=location.belowbar, color=CDUp?lime:red)
+plotchar(numbers?CD==6  and CD[1]==5  ?1: 0:0, char='6' , location=location.belowbar, color=CDUp?lime:red)
+plotchar(numbers?CD==7  and CD[1]==6  ?1: 0:0, char='7' , location=location.belowbar, color=CDUp?lime:red)
+plotchar(numbers?CD==8  and CD[1]==7  ?1: 0:0, char='8' , location=location.belowbar, color=CDUp?lime:red)
+plotchar(numbers?CD==9  and CD[1]==8  ?1: 0:0, char='9' , location=location.belowbar, color=CDUp?lime:red)
+plotchar(numbers?CD==10 and CD[1]==9  ?1: 0:0, char='a', location=location.belowbar, color=CDUp?lime:red)
+plotchar(numbers?CD==11 and CD[1]==10 ?1: 0:0, char='b', location=location.belowbar, color=CDUp?lime:red)
+plotchar(numbers?CD==12 and CD[1]==11 ?1: 0:0, char='c', location=location.belowbar, color=CDUp?lime:red)
+plotchar(numbers?CD==13 and CD[1]==12 ?1: 0:0, char='d', location=location.belowbar, color=CDUp?lime:red)
+
+//Where the countdown condition is met but the completion to countdown bar 13 is not met.  Plot a "+" sign to indicate this.
+plotshape(numbers?CD==12 and CD[1]==12 and ((CDUpBar and CDUp) or (CDDnBar and CDDn))?1: 0:0, location=location.belowbar, style=shape.cross, color=CDUp?lime:red)
+
+
+//^^^^^^^^^^^^^^^^^^^^//
+//  Plot Bar Colours  //
+//____________________//
+
+//One of the previous versions had this so included it but could be adapted as needed.
+
+sellovershoot  = TDUp==13
+sellovershoot1 = TDUp==14
+sellovershoot2 = TDUp==15
+sellovershoot3 = TDUp==16
+
+buyovershoot   = TDDn==13
+buyovershoot1  = TDDn==14
+buyovershoot2  = TDDn==15
+buyovershoot3  = TDDn==16
+
+barcolor(barcolor?(sell? #FF0000 : buy? #00FF00 : sellovershoot? #FF66A3 : sellovershoot1? #FF3385 : sellovershoot2? #FF0066 : sellovershoot3? #CC0052 : buyovershoot? #D6FF5C : buyovershoot1? #D1FF47 : buyovershoot2? #B8E62E : buyovershoot3? #8FB224 : na):na)
