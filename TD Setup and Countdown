@@ -134,6 +134,23 @@ CDDn    = CDDnOn==0 ? 0 : CDDnBar ? CDDn[1]==12 and low  > valuewhen(CDDn[1]==7,
 
 CD = CDUp>CDDn?CDUp:CDDn
 
+//^^^^^^COUNTDOWN RISK LEVEL^^^^^^^^^//
+
+//High and low of current countdown.  Each time a new countdown starts we reset.
+tCDHigh =  CD==1 or high>tCDHigh[1] ? high:tCDHigh[1]
+tCDLow  =  CD==1 or low<tCDLow[1] ? low:tCDLow[1]
+
+//Calculate the risk level true range
+tCDHighTR = CD==1 or high>tCDHigh[1] ? high - low : tCDHighTR[1]
+tCDLowTR =  CD==1 or low<tCDLow[1] ? high - low : tCDLowTR[1]
+
+//Risk levels
+CDSellRiskLevel = CD==13 ? tCDHigh + tCDHighTR : CDSellRiskLevel[1]
+CDBuyRiskLevel = CD==13 ? tCDLow - tCDLowTR : CDBuyRiskLevel[1]
+
+displayCDSellRiskLevel = CDUp==13 or CDUp[1]==13 or CDUp[2]==13
+displayCDBuyRiskLevel = CDDn==13 or CDDn[1]==13 or CDDn[2]==13
+
 
 //^^^^^^^^^^^^^^^^^^^^//
 //  Plot              //
@@ -171,8 +188,7 @@ plot(resistance? TDSTres: na, style=circles, linewidth=1, color=red  )
 plot(resistance? TDSTsup: na, style=circles, linewidth=1, color=lime )
 
 //Plot riskLevels
-plot(risklevels and displayBuyRiskLevel ? perfectBuyRiskLevel: na, style=cross, linewidth=2, color=blue)
-plot(risklevels and displaySellRiskLevel ? perfectSellRiskLevel: na, style=cross, linewidth=2, color=orange)
+plot(risklevels ? displayBuyRiskLevel ? perfectBuyRiskLevel: displaySellRiskLevel ? perfectSellRiskLevel : na :na, style=cross, linewidth=2, color=blue)
 
 //Plot Countdown
 plotchar(numbers?CD==1  and CD[1]==0  ?1: 0:0, char='1' , location=location.belowbar, color=CDUp?lime:red)
@@ -187,7 +203,10 @@ plotchar(numbers?CD==9  and CD[1]==8  ?1: 0:0, char='9' , location=location.belo
 plotchar(numbers?CD==10 and CD[1]==9  ?1: 0:0, char='a', location=location.belowbar, color=CDUp?lime:red)
 plotchar(numbers?CD==11 and CD[1]==10 ?1: 0:0, char='b', location=location.belowbar, color=CDUp?lime:red)
 plotchar(numbers?CD==12 and CD[1]==11 ?1: 0:0, char='c', location=location.belowbar, color=CDUp?lime:red)
-plotchar(numbers?CD==13 and CD[1]==12 ?1: 0:0, char='d', location=location.belowbar, color=CDUp?lime:red)
+plotchar(numbers?CD==13 and CD[1]==12 ?1: 0:0, char='d', location=location.belowbar, color=CDUp?lime:red, text='13')
+
+//plot countdown risk level
+plot(risklevels ? displayCDBuyRiskLevel ? CDBuyRiskLevel: displayCDSellRiskLevel ? CDSellRiskLevel : na :na, style=cross, linewidth=2, color=orange)
 
 //Where the countdown condition is met but the completion to countdown bar 13 is not met.  Plot a "+" sign to indicate this.
 plotshape(numbers?CD==12 and CD[1]==12 and ((CDUpBar and CDUp) or (CDDnBar and CDDn))?1: 0:0, location=location.belowbar, style=shape.cross, color=CDUp?lime:red)
